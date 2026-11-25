@@ -127,12 +127,13 @@ function homeView(){
   const blocks = JAHRE.map(j=>{
     const all = cardsOf(j.key), ok = all.filter(ready), open = all.length-ok.length;
     const due = ok.filter(isDue).length;
+    const gesehen = ok.filter(c=>boxOf(c)>0).length;
     const sitzt = ok.filter(c=>boxOf(c)>=4).length;
-    const pct = ok.length ? Math.round(sitzt/ok.length*100) : 0;
+    const pct = ok.length ? Math.round(ok.reduce((a,c)=>a+Math.min(boxOf(c),4)/4,0)/ok.length*100) : 0;
     return `<div class="card">
       <div class="top"><h2>${j.name}</h2><span class="muted">${ok.length} Karten${open?` · ${open} offen`:""}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="stats"><div><b>${pct}%</b><span class="muted">sitzt</span></div><div><b>${due}</b><span class="muted">fällig</span></div></div>
+      <div class="stats"><div><b>${pct}%</b><span class="muted">Fortschritt</span></div><div><b>${gesehen}/${ok.length}</b><span class="muted">geübt</span></div><div><b>${sitzt}</b><span class="muted">sitzt</span></div><div><b>${due}</b><span class="muted">fällig</span></div></div>
       <button class="primary" ${ok.length?"":"disabled"} data-act="setup" data-key="${j.key}">Öffnen</button>
     </div>`;
   }).join("");
