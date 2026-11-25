@@ -180,7 +180,10 @@ function setupView(){
         <button class="primary grow" data-act="start-lernen">Karteikarten</button>
         <button class="primary grow" data-act="start-test">Test</button>
       </div>
-      <div class="hint">Karteikarten: fällige und neue Karten, falsche kommen wieder. Test: gemischte Fragen mit Auswertung.</div>
+      <div class="row" style="margin-top:8px">
+        <button class="primary grow" data-act="start-mc">Multiple Choice (3–4 Antworten)</button>
+      </div>
+      <div class="hint">Karteikarten: fällige und neue Karten, falsche kommen wieder. Test: eigene Antwort schreiben und selbst bewerten. Multiple Choice: die richtige von 3–4 Antworten wählen.</div>
     </div>`;
 }
 
@@ -294,6 +297,90 @@ function resultTest(){
     ${wrong.length?`<h2>Das war falsch</h2>${list}`:""}`;
 }
 
+/* ---------- Multiple Choice ---------- */
+function shortAns(a){
+  const lines=String(a).split("\n").map(l=>l.trim()).filter(l=>l && !/^\(?\s*⚠/.test(l)).map(l=>l.replace(/⚠/g,"").trim()).filter(Boolean);
+  let t=lines.slice(0,3).join(" · ");
+  if(t.length>230) t=t.slice(0,227).replace(/\s+\S*$/,"")+"…";
+  return t;
+}
+function mcNumeric(c){
+  const lines=c.antwort.split("\n").map(l=>l.trim()).filter(Boolean);
+  let fin=null;
+  for(let i=lines.length-1;i>=0;i--){ if(!/^\(|^Kontrolle|^Nicht|^⚠/.test(lines[i]) && /\d/.test(lines[i])){ fin=i; break; } }
+  if(fin===null) return null;
+  let start=fin; while(start>0 && /^[a-c]\)/.test(lines[start-1])) start--;
+  if(/^[a-c]\)/.test(lines[fin]) && start>0) { /* Teilaufgaben a) b) c) zusammen */ }
+  const txt=lines.slice(start,fin+1).join(" · ");
+  const re=/\d[\d’']*[.,]?\d*/g, occ=[]; let m;
+  while((m=re.exec(txt))) occ.push({i:m.index,raw:m[0]});
+  if(!occ.length) return null;
+  const fmt=(raw,x)=>{
+    const clean=raw.replace(/[’']/g,"").replace(",","."); const dec=(clean.split(".")[1]||"").length;
+    let s=x.toFixed(dec); if(/[’']/.test(raw)){ const p=s.split("."); const sep=raw.match(/['’]/)[0]; p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,sep); s=p.join("."); }
+    return /,/.test(raw) ? s.replace(".",",") : s;
+  };
+  const facs=[1.1,0.9,2,0.5,1.5,0.75,10,0.1], out=new Set();
+  let guard=0;
+  while(out.size<3 && guard++<60){
+    const o=Math.random()<0.7?occ[occ.length-1]:occ[Math.floor(Math.random()*occ.length)];
+    const v=parseFloat(o.raw.replace(/[’']/g,"").replace(",",".")); if(!isFinite(v)||v===0) continue;
+    const f=facs[Math.floor(Math.random()*facs.length)];
+    const nv=guard>40 ? v+1+out.size : v*f;
+    const nr=fmt(o.raw,nv); if(nr===o.raw) continue;
+    out.add(txt.slice(0,o.i)+nr+txt.slice(o.i+o.raw.length));
+  }
+  if(out.size<3) return null;
+  return {correct:txt, wrong:[...out]};
+}
+function mcOptions(c){
+  let correct, wrong;
+  const num = /^lj3-\d/.test(c.id) ? mcNumeric(c) : null;
+  if(num){ correct=num.correct; wrong=num.wrong; }
+  else {
+    correct=shortAns(c.antwort);
+    const key=c.id.split("-")[0];
+    let pool=cardsOf(key).filter(x=>x.id!==c.id && ready(x));
+    const same=pool.filter(x=>x.kapitel===c.kapitel);
+    if(same.length>=3) pool=same;
+    const seen=new Set([correct]), cand=[];
+    pool.forEach(x=>{ const s=shortAns(x.antwort); if(s && !seen.has(s)){ seen.add(s); cand.push(s); } });
+    cand.sort((a,b)=>Math.abs(a.length-correct.length)-Math.abs(b.length-correct.length));
+    wrong=shuffle(cand.slice(0,8)).slice(0,3);
+  }
+  const opts=shuffle([{t:correct,ok:true},...wrong.map(t=>({t,ok:false}))]);
+  return opts;
+}
+function startMC(){
+  const cards=pickCards("test");
+  if(!cards.length){ alert("Keine passenden Karten gefunden."); return; }
+  sess={mode:"mc", cards, i:0, res:[], revealed:false, picked:null, own:"", opts:null, back:view.key};
+  go({name:"mc"});
+}
+function mcView(){
+  if(sess.i>=sess.cards.length) return resultTest();
+  const c=sess.cards[sess.i];
+  if(!sess.opts) sess.opts=mcOptions(c);
+  const L="ABCD";
+  const body=sess.opts.map((o,k)=>{
+    let cls="";
+    if(sess.picked!==null){ if(o.ok) cls="right"; else if(k===sess.picked) cls="wrong"; }
+    return `<button class="opt ${cls}" data-act="mcpick" data-k="${k}" ${sess.picked!==null?"disabled":""}><b>${L[k]})</b> ${esc(o.t)}</button>`;
+  }).join("");
+  const after=sess.picked===null ? "" :
+    `<div class="muted" style="margin-top:10px">${sess.opts[sess.picked].ok?"Richtig!":"Falsch. Vollständige Lösung:"}</div><div class="a" style="margin-top:4px">${esc(c.antwort)}</div>
+     <button class="primary big" data-act="mcnext" style="margin-top:10px">Weiter</button>`;
+  return `<div class="top"><button data-act="home">Abbrechen</button><span class="muted">Frage ${sess.i+1}/${sess.cards.length}</span></div>
+    <div class="bar" style="margin:8px 0"><i style="width:${sess.i/sess.cards.length*100}%"></i></div>
+    <div class="card">
+      ${c.kapitel?`<span class="tag">${esc(c.kapitel)}</span>`:""}${c.quelle?`<span class="tag">${esc(c.quelle)}</span>`:""}
+      <div class="q">${esc(c.frage)}</div>
+      ${c.bild?`<img class="pic" src="${esc(c.bild)}" alt="">`:""}
+      ${body}${after}
+    </div>
+    <div class="hint">Tastatur: 1–4 = Antwort wählen · Enter = weiter</div>`;
+}
+
 /* ---------- Lösungsliste (scrollen, ohne Karteikarten) ---------- */
 function nrOf(c){ const m=/-(f?\d+)$/.exec(c.id); return m?m[1]:""; }
 function listView(){
@@ -333,7 +420,8 @@ function render(){
     view.name==="setup" ? setupView() :
     view.name==="lernen" ? lernenView() :
     view.name==="test" ? testView() :
-    view.name==="liste" ? listView() : "";
+    view.name==="liste" ? listView() :
+    view.name==="mc" ? mcView() : "";
 }
 
 $app.addEventListener("input", e=>{
@@ -353,6 +441,9 @@ $app.addEventListener("click", e=>{
     case "setup": go({name:"setup", key:t.dataset.key}); break;
     case "start-lernen": startLernen(); break;
     case "start-test": startTest(); break;
+    case "start-mc": startMC(); break;
+    case "mcpick": sess.picked=+t.dataset.k; render(); break;
+    case "mcnext": finishQuestion(sess.opts[sess.picked].ok); break;
     case "flip": sess.flipped=true; render(); break;
     case "ja": answerLernen(true); break;
     case "nein": answerLernen(false); break;
@@ -369,6 +460,11 @@ $app.addEventListener("click", e=>{
 
 document.addEventListener("keydown", e=>{
   if(e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
+  if(view.name==="mc" && sess){
+    if(sess.picked===null && /^[1-4]$/.test(e.key) && +e.key<=sess.opts.length){ sess.picked=+e.key-1; render(); }
+    else if(sess.picked!==null && e.key==="Enter"){ e.preventDefault(); finishQuestion(sess.opts[sess.picked].ok); }
+    return;
+  }
   if(view.name==="lernen" && sess?.queue.length){
     if(!sess.flipped && (e.key===" "||e.key==="Enter")){ e.preventDefault(); sess.flipped=true; render(); }
     else if(sess.flipped && (e.key==="1"||e.key==="ArrowLeft")) answerLernen(false);
