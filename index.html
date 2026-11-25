@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#d9772b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lernapp">
+<title>Lackierer Lernapp</title>
+<style>
+:root{
+  --bg:#f6f4f1; --card:#ffffff; --text:#1f1d1b; --muted:#6b6560; --line:#e4dfd9;
+  --accent:#d9772b; --accent-ink:#ffffff; --good:#2e8b57; --bad:#c0392b; --soft:#fbefe4;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#161412; --card:#221f1c; --text:#f1ede8; --muted:#a39b93; --line:#3a352f; --soft:#33271c;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:8px 0 4px}
+h2{font-size:1.15rem;margin:0 0 8px}
+.muted{color:var(--muted);font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+button,select{font:inherit;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:10px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.good{background:var(--good);color:#fff;border-color:var(--good);font-weight:600}
+button.bad{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:600}
+button:disabled{opacity:.4;cursor:default}
+button.big{width:100%;padding:14px}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 12px}
+.stats b{display:block;font-size:1.3rem}
+.q{font-size:1.25rem;font-weight:600;margin:6px 0 12px;white-space:pre-wrap}
+.a{white-space:pre-wrap;background:var(--soft);border-radius:10px;padding:12px;margin-top:12px}
+.tag{display:inline-block;font-size:.78rem;background:var(--soft);border-radius:99px;padding:2px 10px;margin:0 6px 6px 0;color:var(--muted)}
+.opt{display:block;width:100%;text-align:left;margin:8px 0;white-space:pre-wrap}
+.opt.right{background:var(--good);color:#fff;border-color:var(--good)}
+.opt.wrong{background:var(--bad);color:#fff;border-color:var(--bad)}
+textarea{width:100%;min-height:90px;font:inherit;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:10px}
+img.pic{max-width:100%;border-radius:10px;margin:8px 0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.big-score{font-size:2.4rem;font-weight:700}
+label{display:flex;align-items:center;gap:8px}
+.hint{font-size:.8rem;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<!-- Kartendaten: eine Datei pro Lehrjahr -->
+<script>window.KARTEN = {};</script>
+<script src="daten/lj1.js"></script>
+<script src="daten/lj2.js"></script>
+<script src="daten/lj3.js"></script>
+
+<!-- Antworten: eine Datei pro Lernheft (id -> Text). Wird unten in die Karten gemerged. -->
+<script>window.ANT = {};</script>
+<script src="daten/ant/1.1.js"></script>
+<script src="daten/ant/1.2.js"></script>
+<script src="daten/ant/1.3.js"></script>
+<script src="daten/ant/1.4.js"></script>
+<script src="daten/ant/1.5.js"></script>
+<script src="daten/ant/1.6.js"></script>
+<script src="daten/ant/1.7.js"></script>
+<script src="daten/ant/1.8.js"></script>
+<script src="daten/ant/1.9.js"></script>
+<script src="daten/ant/1.10.js"></script>
+<script src="daten/ant/2.1.js"></script>
+<script src="daten/ant/2.2.js"></script>
+<script src="daten/ant/2.3.js"></script>
+<script src="daten/ant/2.4.js"></script>
+<script src="daten/ant/2.5.js"></script>
+<script src="daten/ant/2.6.js"></script>
+<script src="daten/ant/2.7.js"></script>
+<script src="daten/ant/2.8.js"></script>
+<script>
+  Object.keys(window.KARTEN).forEach(k => window.KARTEN[k].forEach(c => {
+    if (!(c.antwort && c.antwort.trim()) && window.ANT[c.id]) c.antwort = window.ANT[c.id];
+  }));
+</script>
+
+<script>
+"use strict";
+const JAHRE = [
+  {key:"lj1", name:"1. Lehrjahr"},
+  {key:"lj2", name:"2. Lehrjahr"},
+  {key:"lj3", name:"3. Lehrjahr"},
+];
+const INTERVAL_TAGE = [0,0,1,3,6,10];   // Index = Box (1..5)
+const LS_KEY = "lackierer-lernapp-v1";
+const $app = document.getElementById("app");
+
+/* ---------- Speicher (Fortschritt im Browser) ---------- */
+let store = { p:{} };
+try { store = JSON.parse(localStorage.getItem(LS_KEY)) || { p:{} }; } catch(e){}
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); }catch(e){} }
+
+/* ---------- Hilfen ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const shuffle = a => { a = a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const ready = c => c.antwort && c.antwort.trim();
+const cardsOf = key => (key==="alle" ? JAHRE.flatMap(j=>window.KARTEN[j.key]||[]) : (window.KARTEN[key]||[]));
+const isDue = c => { const p=store.p[c.id]; return !p || p.due <= Date.now(); };
+const boxOf = c => store.p[c.id]?.box || 0;
+
+function grade(id, ok){
+  const p = store.p[id] || {box:1, due:0, r:0, w:0};
+  if(ok){ p.box = Math.min(5, p.box+1); p.r++; } else { p.box = 1; p.w++; }
+  p.due = Date.now() + INTERVAL_TAGE[p.box]*864e5;
+  store.p[id] = p; save();
+}
+
+/* ---------- Zustand ---------- */
+let view = {name:"home"};
+let sess = null;
+
+function go(v){ view = v; render(); window.scrollTo(0,0); }
+
+/* ---------- Startseite ---------- */
+function homeView(){
+  const blocks = JAHRE.map(j=>{
+    const all = cardsOf(j.key), ok = all.filter(ready), open = all.length-ok.length;
+    const due = ok.filter(isDue).length;
+    const sitzt = ok.filter(c=>boxOf(c)>=4).length;
+    const pct = ok.length ? Math.round(sitzt/ok.length*100) : 0;
+    return `<div class="card">
+      <div class="top"><h2>${j.name}</h2><span class="muted">${ok.length} Karten${open?` · ${open} offen`:""}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="stats"><div><b>${pct}%</b><span class="muted">sitzt</span></div><div><b>${due}</b><span class="muted">fällig</span></div></div>
+      <button class="primary" ${ok.length?"":"disabled"} data-act="setup" data-key="${j.key}">Öffnen</button>
+    </div>`;
+  }).join("");
+  const total = cardsOf("alle").filter(ready).length;
+  return `<h1>Lackierer Lernapp</h1>
+    <div class="muted">Zwischenprüfung Carrosserie-Lackierer/in EFZ</div>
+    ${blocks}
+    <div class="card"><div class="top"><h2>Alle Lehrjahre zusammen</h2><span class="muted">${total} Karten</span></div>
+      <button ${total?"":"disabled"} data-act="setup" data-key="alle">Öffnen</button></div>
+    <div class="row" style="margin-top:16px">
+      <button data-act="export">Fortschritt sichern</button>
+      <button data-act="import">Fortschritt laden</button>
+      <button data-act="reset">Fortschritt löschen</button>
+    </div>`;
+}
+
+/* ---------- Einstellungen vor dem Lernen ---------- */
+function setupView(){
+  const key = view.key, name = key==="alle" ? "Alle Lehrjahre" : JAHRE.find(j=>j.key===key).name;
+  const ok = cardsOf(key).filter(ready);
+  const kap = {}; ok.forEach(c=>{ kap[c.kapitel||"Ohne Kapitel"] = (kap[c.kapitel||"Ohne Kapitel"]||0)+1; });
+  const opts = Object.entries(kap).map(([k,n])=>`<option value="${esc(k)}">${esc(k)} (${n})</option>`).join("");
+  return `<div class="top"><h1>${name}</h1><button data-act="home">Zurück</button></div>
+    <div class="card">
+      <h2>Auswahl</h2>
+      <div class="row"><label class="grow">Kapitel
+        <select id="kap" class="grow"><option value="">Alle Kapitel (${ok.length})</option>${opts}</select></label></div>
+      <div class="row" style="margin-top:10px"><label class="grow">Anzahl
+        <select id="anz"><option value="0">alle</option><option value="10">10</option><option value="20" selected>20</option><option value="40">40</option></select></label>
+        <label><input type="checkbox" id="schwach"> nur schwache Karten</label></div>
+      <div class="row" style="margin-top:16px">
+        <button class="primary grow" data-act="start-lernen">Karteikarten</button>
+        <button class="primary grow" data-act="start-test">Test</button>
+      </div>
+      <div class="hint">Karteikarten: fällige und neue Karten, falsche kommen wieder. Test: gemischte Fragen mit Auswertung.</div>
+    </div>`;
+}
+
+function pickCards(mode){
+  const key = view.key, kap = document.getElementById("kap").value;
+  const anz = +document.getElementById("anz").value, schwach = document.getElementById("schwach").checked;
+  let c = cardsOf(key).filter(ready);
+  if(kap) c = c.filter(x=>(x.kapitel||"Ohne Kapitel")===kap);
+  if(schwach) c = c.filter(x=>{const b=boxOf(x); return b>0 && b<=2;});
+  else if(mode==="lernen"){ const f=c.filter(isDue); c = f.length ? f : c; }
+  c = shuffle(c);
+  return anz ? c.slice(0,anz) : c;
+}
+
+/* ---------- Karteikarten ---------- */
+function startLernen(){
+  const cards = pickCards("lernen");
+  if(!cards.length){ alert("Keine passenden Karten gefunden."); return; }
+  sess = {mode:"lernen", queue:cards, total:cards.length, done:0, failed:new Set(), firstOk:0, flipped:false, back:view.key};
+  go({name:"lernen"});
+}
+function lernenView(){
+  if(!sess.queue.length) return resultLernen();
+  const c = sess.queue[0], b = boxOf(c);
+  return `<div class="top"><button data-act="home">Beenden</button><span class="muted">${sess.done}/${sess.total}</span></div>
+    <div class="bar" style="margin:8px 0"><i style="width:${sess.done/sess.total*100}%"></i></div>
+    <div class="card">
+      ${c.kapitel?`<span class="tag">${esc(c.kapitel)}</span>`:""}${c.quelle?`<span class="tag">${esc(c.quelle)}</span>`:""}<span class="tag">Box ${b||"neu"}</span>
+      <div class="q">${esc(c.frage)}</div>
+      ${c.bild?`<img class="pic" src="${esc(c.bild)}" alt="">`:""}
+      ${sess.flipped ? `<div class="a">${esc(c.antwort)}</div>${c.bildAntwort?`<img class="pic" src="${esc(c.bildAntwort)}" alt="">`:""}` : ""}
+    </div>
+    ${sess.flipped
+      ? `<div class="row"><button class="bad grow big" data-act="nein">Nicht gewusst</button><button class="good grow big" data-act="ja">Gewusst</button></div>`
+      : `<button class="primary big" data-act="flip">Antwort zeigen</button>`}
+    <div class="hint">Tastatur: Leertaste = umdrehen · 1 / ← = nicht gewusst · 2 / → = gewusst</div>`;
+}
+function answerLernen(ok){
+  const c = sess.queue.shift();
+  if(ok){
+    if(!sess.failed.has(c.id)){ grade(c.id,true); sess.firstOk++; }
+    sess.done++;
+  } else {
+    if(!sess.failed.has(c.id)){ grade(c.id,false); sess.failed.add(c.id); }
+    sess.queue.push(c);
+  }
+  sess.flipped = false; render();
+}
+function resultLernen(){
+  return `<div class="card" style="text-align:center">
+    <h2>Fertig</h2>
+    <div class="big-score">${sess.firstOk}/${sess.total}</div>
+    <div class="muted">beim ersten Mal gewusst</div>
+    <div class="row" style="justify-content:center;margin-top:16px">
+      <button class="primary" data-act="setup" data-key="${sess.back}">Nochmal</button>
+      <button data-act="home">Startseite</button></div></div>`;
+}
+
+/* ---------- Test ---------- */
+function startTest(){
+  const cards = pickCards("test");
+  if(!cards.length){ alert("Keine passenden Karten gefunden."); return; }
+  sess = {mode:"test", cards, i:0, res:[], revealed:false, picked:null, own:"", back:view.key};
+  go({name:"test"});
+}
+function testView(){
+  if(sess.i >= sess.cards.length) return resultTest();
+  const c = sess.cards[sess.i];
+  const mc = c.falsch && c.falsch.length>=2;
+  if(mc && !sess.opts) sess.opts = shuffle([c.antwort, ...c.falsch.slice(0,3)]);
+  let body="";
+  if(mc){
+    body = sess.opts.map((o,k)=>{
+      let cls="";
+      if(sess.picked!==null){ if(o===c.antwort) cls="right"; else if(k===sess.picked) cls="wrong"; }
+      return `<button class="opt ${cls}" data-act="pick" data-k="${k}" ${sess.picked!==null?"disabled":""}>${esc(o)}</button>`;
+    }).join("");
+    if(sess.picked!==null) body += `<button class="primary big" data-act="weiter" style="margin-top:8px">Weiter</button>`;
+  } else if(!sess.revealed){
+    body = `<textarea id="own" placeholder="Deine Antwort (optional, hilft beim Erinnern)">${esc(sess.own)}</textarea>
+            <button class="primary big" data-act="reveal" style="margin-top:8px">Antwort prüfen</button>`;
+  } else {
+    body = `${sess.own?`<div class="muted">Deine Antwort:</div><div class="a" style="margin-top:4px">${esc(sess.own)}</div>`:""}
+            <div class="muted" style="margin-top:10px">Richtige Antwort:</div><div class="a" style="margin-top:4px">${esc(c.antwort)}</div>
+            <div class="row" style="margin-top:12px"><button class="bad grow big" data-act="t-nein">Falsch</button><button class="good grow big" data-act="t-ja">Richtig</button></div>`;
+  }
+  return `<div class="top"><button data-act="home">Abbrechen</button><span class="muted">Frage ${sess.i+1}/${sess.cards.length}</span></div>
+    <div class="bar" style="margin:8px 0"><i style="width:${sess.i/sess.cards.length*100}%"></i></div>
+    <div class="card">
+      ${c.kapitel?`<span class="tag">${esc(c.kapitel)}</span>`:""}${c.quelle?`<span class="tag">${esc(c.quelle)}</span>`:""}
+      <div class="q">${esc(c.frage)}</div>
+      ${c.bild?`<img class="pic" src="${esc(c.bild)}" alt="">`:""}
+      ${body}
+    </div>`;
+}
+function finishQuestion(ok){
+  const c = sess.cards[sess.i];
+  grade(c.id, ok); sess.res.push({c, ok});
+  sess.i++; sess.revealed=false; sess.picked=null; sess.own=""; sess.opts=null; render();
+}
+function resultTest(){
+  const n = sess.res.length, r = sess.res.filter(x=>x.ok).length, pct = Math.round(r/n*100);
+  const wrong = sess.res.filter(x=>!x.ok);
+  const list = wrong.map(x=>`<div class="card"><div class="q" style="font-size:1rem">${esc(x.c.frage)}</div><div class="a">${esc(x.c.antwort)}</div></div>`).join("");
+  return `<div class="card" style="text-align:center">
+    <h2>Testergebnis</h2><div class="big-score">${pct}%</div>
+    <div class="muted">${r} von ${n} richtig</div>
+    <div class="row" style="justify-content:center;margin-top:16px">
+      <button class="primary" data-act="setup" data-key="${sess.back}">Neuer Test</button>
+      <button data-act="home">Startseite</button></div></div>
+    ${wrong.length?`<h2>Das war falsch</h2>${list}`:""}`;
+}
+
+/* ---------- Render + Events ---------- */
+function render(){
+  const keep = document.getElementById("own")?.value;
+  if(keep!==undefined && sess) sess.own = keep;
+  $app.innerHTML =
+    view.name==="home" ? homeView() :
+    view.name==="setup" ? setupView() :
+    view.name==="lernen" ? lernenView() :
+    view.name==="test" ? testView() : "";
+}
+
+$app.addEventListener("click", e=>{
+  const t = e.target.closest("[data-act]"); if(!t) return;
+  const own = document.getElementById("own"); if(own && sess) sess.own = own.value;
+  switch(t.dataset.act){
+    case "home": go({name:"home"}); break;
+    case "setup": go({name:"setup", key:t.dataset.key}); break;
+    case "start-lernen": startLernen(); break;
+    case "start-test": startTest(); break;
+    case "flip": sess.flipped=true; render(); break;
+    case "ja": answerLernen(true); break;
+    case "nein": answerLernen(false); break;
+    case "reveal": sess.revealed=true; render(); break;
+    case "t-ja": finishQuestion(true); break;
+    case "t-nein": finishQuestion(false); break;
+    case "pick": sess.picked=+t.dataset.k; render(); break;
+    case "weiter": { const c=sess.cards[sess.i]; finishQuestion(sess.opts[sess.picked]===c.antwort); break; }
+    case "export": exportProgress(); break;
+    case "import": importProgress(); break;
+    case "reset": if(confirm("Gesamten Lernfortschritt wirklich löschen?")){ store={p:{}}; save(); render(); } break;
+  }
+});
+
+document.addEventListener("keydown", e=>{
+  if(e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
+  if(view.name==="lernen" && sess?.queue.length){
+    if(!sess.flipped && (e.key===" "||e.key==="Enter")){ e.preventDefault(); sess.flipped=true; render(); }
+    else if(sess.flipped && (e.key==="1"||e.key==="ArrowLeft")) answerLernen(false);
+    else if(sess.flipped && (e.key==="2"||e.key==="ArrowRight")) answerLernen(true);
+  }
+});
+
+/* ---------- Fortschritt sichern / laden ---------- */
+function exportProgress(){
+  const blob = new Blob([JSON.stringify(store,null,1)],{type:"application/json"});
+  const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download = "lernfortschritt-"+new Date().toISOString().slice(0,10)+".json"; a.click();
+}
+function importProgress(){
+  const inp = document.createElement("input"); inp.type="file"; inp.accept="application/json";
+  inp.onchange = () => { const f=inp.files[0]; if(!f) return; const r=new FileReader();
+    r.onload = () => { try{ const d=JSON.parse(r.result); if(d&&d.p){ store=d; save(); render(); } else alert("Datei passt nicht."); }catch(err){ alert("Datei nicht lesbar."); } };
+    r.readAsText(f); };
+  inp.click();
+}
+
+render();
+</script>
+<script>if('serviceWorker' in navigator && location.protocol.startsWith('http')){navigator.serviceWorker.register('sw.js').catch(function(){});}</script>
+</body>
+</html>
