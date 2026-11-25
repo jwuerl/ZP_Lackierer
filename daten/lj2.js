@@ -156,7 +156,8 @@
     [139,"2.8","Beschreiben Sie den Lackierfehler „Beifallen“: Beschreibung, Ursachen, Vermeidung und Reparatur.","Lernheft 2.8, Auftrag 24 – Beifallen, S. 23"],
     [140,"2.8","Beschreiben Sie den Lackierfehler „Kocher“: Beschreibung, Ursachen, Vermeidung und Reparatur.","Lernheft 2.8, Auftrag 24 – Kocher, S. 24"]
   ];
-  window.KARTEN.lj2 = R.map(r => {
+  // Aufgaben mit Abbildung (r[4]) sind nicht enthalten (Info-Knopf auf der Startseite)
+  window.KARTEN.lj2 = R.filter(r => !r[4]).map(r => {
     const id = "lj2-" + String(r[0]).padStart(3, "0");
     const c = { id, kapitel: K[r[1]], frage: r[2], antwort: "", quelle: r[3] };
     if (r[4]) c.bild = "bilder/" + id + ".jpg";

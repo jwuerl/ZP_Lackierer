@@ -144,7 +144,8 @@ function homeView(){
     </div>`;
   }).join("");
   const total = cardsOf("alle").filter(ready).length;
-  return `<h1>Lackierer Lernapp</h1>
+  return `<div class="top"><h1>Lackierer Lernapp</h1><button data-act="info" title="Info: nicht enthaltene Aufgaben" aria-label="Info">ⓘ Info</button></div>
+    <div id="info" class="card" style="display:none;border-color:var(--accent)"><b>Nicht enthalten</b><div class="muted" style="margin-top:6px">Dossier 2: 18 Aufgaben, die eine Abbildung brauchen (z. B. Lackierpistole beschriften, Sicherungen, Farbkreis, Beleuchtung). Das sind die Nr. 52, 65, 69, 71, 72, 86, 87, 88, 96, 103, 104, 108, 109, 119, 120, 121, 123, 136. Diese bitte direkt im Dossier und Lernheft üben.</div></div>
     <div class="muted">Zwischenprüfung Carrosserie-Lackierer/in EFZ</div>
     <div class="card" style="border-color:var(--accent)">
       <h2>Lösungen nachschlagen</h2>
@@ -436,6 +437,7 @@ $app.addEventListener("click", e=>{
   const own = document.getElementById("own"); if(own && sess) sess.own = own.value;
   switch(t.dataset.act){
     case "home": go({name:"home"}); break;
+    case "info": { const el=document.getElementById("info"); if(el) el.style.display = el.style.display==="none" ? "block" : "none"; break; }
     case "liste": go({name:"liste", key:t.dataset.key}); break;
     case "jump": jumpTo(); break;
     case "setup": go({name:"setup", key:t.dataset.key}); break;
