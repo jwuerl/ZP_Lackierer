@@ -48,6 +48,12 @@ img.pic{max-width:100%;border-radius:10px;margin:8px 0}
 .big-score{font-size:2.4rem;font-weight:700}
 label{display:flex;align-items:center;gap:8px}
 .hint{font-size:.8rem;color:var(--muted);margin-top:8px}
+
+.sticky{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0 10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+input.s{font:inherit;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:10px 12px;min-width:0}
+.nr{display:inline-block;font-weight:700;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:1px 9px;margin:0 8px 6px 0}
+.flash{outline:3px solid var(--accent)}
+.hd{margin:22px 0 6px;font-size:1.05rem}
 </style>
 </head>
 <body>
@@ -134,7 +140,7 @@ function homeView(){
       <div class="top"><h2>${j.name}</h2><span class="muted">${ok.length} Karten${open?` · ${open} offen`:""}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="stats"><div><b>${pct}%</b><span class="muted">Fortschritt</span></div><div><b>${gesehen}/${ok.length}</b><span class="muted">geübt</span></div><div><b>${sitzt}</b><span class="muted">sitzt</span></div><div><b>${due}</b><span class="muted">fällig</span></div></div>
-      <button class="primary" ${ok.length?"":"disabled"} data-act="setup" data-key="${j.key}">Öffnen</button>
+      <div class="row"><button class="primary" ${ok.length?"":"disabled"} data-act="setup" data-key="${j.key}">Lernen</button><button ${ok.length?"":"disabled"} data-act="liste" data-key="${j.key}">Alle Lösungen</button></div>
     </div>`;
   }).join("");
   const total = cardsOf("alle").filter(ready).length;
@@ -282,6 +288,36 @@ function resultTest(){
     ${wrong.length?`<h2>Das war falsch</h2>${list}`:""}`;
 }
 
+/* ---------- Lösungsliste (scrollen, ohne Karteikarten) ---------- */
+function nrOf(c){ const m=/-(f?\d+)$/.exec(c.id); return m?m[1]:""; }
+function listView(){
+  const key=view.key, name=JAHRE.find(j=>j.key===key).name;
+  const cards=cardsOf(key).filter(ready);
+  let last="", html="";
+  cards.forEach(c=>{
+    const nr=nrOf(c), k=c.kapitel||"";
+    if(k!==last){ html+=`<h2 class="hd">${esc(k)}</h2>`; last=k; }
+    html+=`<div class="card" data-nr="${esc(nr)}" data-t="${esc((c.frage+" "+c.antwort).toLowerCase())}">
+      <span class="nr">${/^f/.test(nr)?"Formel "+nr.slice(1):"Nr. "+(+nr)}</span>${c.quelle?`<span class="tag">${esc(c.quelle)}</span>`:""}
+      <div class="q" style="font-size:1.05rem">${esc(c.frage)}</div>
+      ${c.bild?`<img class="pic" src="${esc(c.bild)}" alt="">`:""}
+      <div class="a">${esc(c.antwort)}</div></div>`;
+  });
+  return `<div class="sticky"><div class="top"><h1>${name}: Lösungen</h1><button data-act="home">Zurück</button></div>
+    <div class="row" style="margin-top:8px">
+      <input class="s" id="jump" type="number" inputmode="numeric" placeholder="Nr." style="width:90px">
+      <button data-act="jump">Springen</button>
+      <input class="s grow" id="q-search" type="search" placeholder="Suchen (Frage oder Antwort)">
+    </div><div class="muted" id="cnt" style="margin-top:6px">${cards.length} Aufgaben</div></div>${html}`;
+}
+function jumpTo(){
+  const v=document.getElementById("jump").value.trim(); if(!v) return;
+  const el=[...document.querySelectorAll("[data-nr]")].find(e=>e.dataset.nr===String(+v).padStart(3,"0")||e.dataset.nr===v||+e.dataset.nr===+v);
+  if(!el){ alert("Nr. "+v+" nicht gefunden."); return; }
+  el.style.display=""; el.scrollIntoView({behavior:"smooth",block:"center"});
+  el.classList.add("flash"); setTimeout(()=>el.classList.remove("flash"),1800);
+}
+
 /* ---------- Render + Events ---------- */
 function render(){
   const keep = document.getElementById("own")?.value;
@@ -290,14 +326,24 @@ function render(){
     view.name==="home" ? homeView() :
     view.name==="setup" ? setupView() :
     view.name==="lernen" ? lernenView() :
-    view.name==="test" ? testView() : "";
+    view.name==="test" ? testView() :
+    view.name==="liste" ? listView() : "";
 }
 
+$app.addEventListener("input", e=>{
+  if(e.target.id!=="q-search") return;
+  const q=e.target.value.trim().toLowerCase(); let n=0;
+  document.querySelectorAll("[data-t]").forEach(el=>{ const show=!q||el.dataset.t.includes(q); el.style.display=show?"":"none"; if(show) n++; });
+  const c=document.getElementById("cnt"); if(c) c.textContent=n+" Aufgaben";
+});
+$app.addEventListener("keydown", e=>{ if(e.key==="Enter" && e.target.id==="jump"){ e.preventDefault(); jumpTo(); } });
 $app.addEventListener("click", e=>{
   const t = e.target.closest("[data-act]"); if(!t) return;
   const own = document.getElementById("own"); if(own && sess) sess.own = own.value;
   switch(t.dataset.act){
     case "home": go({name:"home"}); break;
+    case "liste": go({name:"liste", key:t.dataset.key}); break;
+    case "jump": jumpTo(); break;
     case "setup": go({name:"setup", key:t.dataset.key}); break;
     case "start-lernen": startLernen(); break;
     case "start-test": startTest(); break;
