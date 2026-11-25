@@ -140,12 +140,18 @@ function homeView(){
       <div class="top"><h2>${j.name}</h2><span class="muted">${ok.length} Karten${open?` · ${open} offen`:""}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="stats"><div><b>${pct}%</b><span class="muted">Fortschritt</span></div><div><b>${gesehen}/${ok.length}</b><span class="muted">geübt</span></div><div><b>${sitzt}</b><span class="muted">sitzt</span></div><div><b>${due}</b><span class="muted">fällig</span></div></div>
-      <div class="row"><button class="primary" ${ok.length?"":"disabled"} data-act="setup" data-key="${j.key}">Lernen</button><button ${ok.length?"":"disabled"} data-act="liste" data-key="${j.key}">Alle Lösungen</button></div>
+      <button class="primary" ${ok.length?"":"disabled"} data-act="setup" data-key="${j.key}">Lernen</button>
     </div>`;
   }).join("");
   const total = cardsOf("alle").filter(ready).length;
   return `<h1>Lackierer Lernapp</h1>
     <div class="muted">Zwischenprüfung Carrosserie-Lackierer/in EFZ</div>
+    <div class="card" style="border-color:var(--accent)">
+      <h2>Lösungen nachschlagen</h2>
+      <div class="muted" style="margin-bottom:10px">Alle Aufgaben mit Lösung zum Scrollen, ohne Karteikarten. Mit Nr. springen und Suche.</div>
+      <div class="row"><button class="primary grow" data-act="liste" data-key="lj1">Dossier 1</button><button class="primary grow" data-act="liste" data-key="lj2">Dossier 2</button><button class="primary grow" data-act="liste" data-key="lj3">Dossier 3</button></div>
+    </div>
+    <h2 style="margin-top:18px">Lernen mit Karteikarten und Test</h2>
     ${blocks}
     <div class="card"><div class="top"><h2>Alle Lehrjahre zusammen</h2><span class="muted">${total} Karten</span></div>
       <button ${total?"":"disabled"} data-act="setup" data-key="alle">Öffnen</button></div>
